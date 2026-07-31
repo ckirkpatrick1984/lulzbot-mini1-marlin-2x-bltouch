@@ -2191,7 +2191,13 @@
 
 /******************************** PROBE QUALITY CHECK *************************/
 
-#if defined(LULZBOT_USE_AUTOLEVELING)
+// This diagnostic is a plane-fit check specific to the traditional
+// 4-point (2x2) LINEAR grid - it doesn't apply to BILINEAR (a real
+// mesh has no single "plane" to check distance from, bp[4] is sized
+// for the wrong point count, and vector_3 isn't even declared when
+// ABL_PLANAR is false), so it must stay disabled for the BLTouch/
+// BILINEAR case.
+#if defined(LULZBOT_USE_AUTOLEVELING) && defined(LULZBOT_AUTO_BED_LEVELING_LINEAR)
     #define LULZBOT_BED_LEVELING_DECL vector_3 bp[4];
     #define LULZBOT_BED_LEVELING_POINT(i,x,y,z) bp[i] = vector_3(x,y,z);
     #define LULZBOT_BED_LEVELING_SUMMARY \

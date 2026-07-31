@@ -531,6 +531,17 @@
 // Enable this if X or Y can't home without homing the other axis first.
 //#define CODEPENDENT_XY_HOMING
 
+// Project addition (not upstream LulzBot): Mini-RAMBo has no SERVO0_PIN
+// of its own (pins_MINIRAMBO.h never defines one). The BLTouch servo/
+// control line is physically wired to pin 23 - the former Z_MAX_PIN,
+// now repurposed since the mechanical Z-max switch was removed (see
+// LULZBOT_USE_ZMAX_PLUG in Conditionals_LulzBot.h). This file is
+// included before pins/pins.h, so there's no #ifndef guard to fight by
+// defining it here.
+#if defined(LULZBOT_USE_BLTOUCH)
+  #define SERVO0_PIN 23
+#endif
+
 #if ENABLED(BLTOUCH)
   /**
    * Either: Use the defaults (recommended) or: For special purposes, use the following DEFINES
@@ -549,7 +560,7 @@
 
   // Safety: The probe needs time to recognize the command.
   //         Minimum command delay (ms). Enable and increase if needed.
-  //#define BLTOUCH_DELAY 500
+  #define BLTOUCH_DELAY LULZBOT_BLTOUCH_DELAY
 
   /**
    * Settings for BLTOUCH Classic 1.2, 1.3 or BLTouch Smart 1.0, 2.0, 2.2, 3.0, 3.1, and most clones:

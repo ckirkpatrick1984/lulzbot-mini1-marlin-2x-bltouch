@@ -624,7 +624,17 @@
 #define LULZBOT_INVERT_E0_DIR                     true
 #define LULZBOT_INVERT_E1_DIR                     true
 
-#if defined(LULZBOT_IS_MINI)
+#if defined(LULZBOT_IS_MINI) && defined(LULZBOT_USE_BLTOUCH)
+    // The stock Mini homes Z up against a Z-max switch. That switch's
+    // pin has been repurposed for the BLTouch servo line and the
+    // switch itself physically removed, so Z now has to home down
+    // onto the bed using the probe instead.
+    #define LULZBOT_X_HOME_DIR             -1 // Home left
+    #define LULZBOT_Y_HOME_DIR              1 // Home bed forward
+    #define LULZBOT_Z_HOME_DIR             -1 // Home towards bed (BLTouch)
+    #define LULZBOT_QUICK_HOME
+
+#elif defined(LULZBOT_IS_MINI)
     #define LULZBOT_X_HOME_DIR             -1 // Home left
     #define LULZBOT_Y_HOME_DIR              1 // Home bed forward
     #define LULZBOT_Z_HOME_DIR              1 // Home to top
@@ -699,6 +709,18 @@
     #define LULZBOT_Z_SAFE_HOMING_X_POINT         10
     #define LULZBOT_Z_SAFE_HOMING_Y_POINT         10
     #define LULZBOT_Z_HOMING_HEIGHT               5
+#elif defined(LULZBOT_IS_MINI) && defined(LULZBOT_USE_BLTOUCH)
+    // Z now homes using the BLTouch, so XY must be at a safe,
+    // reachable point over the bed before Z homes.
+    // TODO(hardware): (80,80) is an UNVERIFIED placeholder near bed
+    // center, carried over as a starting point only - it has not been
+    // measured/confirmed safe on this hardware. Re-tune on the actual
+    // printer once the real X/Y probe offset is known (see
+    // LULZBOT_X_PROBE_OFFSET_FROM_EXTRUDER / Y below, also unverified).
+    #define LULZBOT_Z_SAFE_HOMING
+    #define LULZBOT_Z_SAFE_HOMING_X_POINT         80
+    #define LULZBOT_Z_SAFE_HOMING_Y_POINT         80
+    #define LULZBOT_Z_HOMING_HEIGHT               4
 #else
     // On the Mini, raise nozzle to clear wiper pad before homing
     #define LULZBOT_Z_HOMING_HEIGHT               4
@@ -789,14 +811,31 @@
 #if defined(LULZBOT_USE_AUTOLEVELING)
     #define LULZBOT_RESTORE_LEVELING_AFTER_G28
     #define LULZBOT_NOZZLE_CLEAN_FEATURE
-    #define LULZBOT_AUTO_BED_LEVELING_LINEAR
+    #if defined(LULZBOT_USE_BLTOUCH)
+        // The stock 2x2 grid below is a compromise forced by the old
+        // nozzle-contact probe's slow, imprecise, physical-dwell-and-
+        // retract cycle - not a deliberate accuracy choice. BLTouch is
+        // fast enough that a real interpolated mesh is practical.
+        #define LULZBOT_AUTO_BED_LEVELING_BILINEAR
+    #else
+        #define LULZBOT_AUTO_BED_LEVELING_LINEAR
+    #endif
 #endif
 
-#if defined(LULZBOT_AUTO_BED_LEVELING_LINEAR)
-  // Traditionally LulzBot printers have employed a four-point leveling
-  // using a degenerate 2x2 grid. This is the traditional behavior.
-  #define LULZBOT_GRID_MAX_POINTS_X            2
-  #define LULZBOT_GRID_MAX_POINTS_Y            2
+#if defined(LULZBOT_AUTO_BED_LEVELING_LINEAR) || defined(LULZBOT_AUTO_BED_LEVELING_BILINEAR)
+  #if defined(LULZBOT_AUTO_BED_LEVELING_BILINEAR)
+    // Real multi-point mesh, made practical by the BLTouch. 5x5 is a
+    // reasonable starting grid, not a calibrated-precise number -
+    // GRID_MAX_POINTS_X/Y can go up to 15 if tuning on hardware shows
+    // a finer mesh is worthwhile.
+    #define LULZBOT_GRID_MAX_POINTS_X            5
+    #define LULZBOT_GRID_MAX_POINTS_Y            5
+  #else
+    // Traditionally LulzBot printers have employed a four-point leveling
+    // using a degenerate 2x2 grid. This is the traditional behavior.
+    #define LULZBOT_GRID_MAX_POINTS_X            2
+    #define LULZBOT_GRID_MAX_POINTS_Y            2
+  #endif
   #if defined(LULZBOT_IS_MINI)
     // We can't control the order of probe points exactly, but
     // this makes the probe start closer to the wiper pad.
@@ -827,11 +866,33 @@
  * named Z_MIN_PROBE in Marlin. The Z-Home switch
  * is called Z_MIN_ENDSTOP
  */
-#if defined(LULZBOT_USE_AUTOLEVELING)
+#if defined(LULZBOT_USE_AUTOLEVELING) && !defined(LULZBOT_USE_BLTOUCH)
     #define LULZBOT_FIX_MOUNTED_PROBE
 #endif // LULZBOT_USE_AUTOLEVELING
 
+#if defined(LULZBOT_USE_BLTOUCH)
+    #define LULZBOT_BLTOUCH
+    #define LULZBOT_BLTOUCH_DELAY                375
+    // Configuration.h's NUM_SERVOS/SERVO_DELAY are unconditionally
+    // indirected to these LULZBOT_* macros (LULZBOT_NUM_SERVOS is not
+    // otherwise defined for the Mini), which defeats stock Marlin's own
+    // NUM_SERVOS auto-provisioning for a Z servo probe - must be set
+    // explicitly here or the build fails on an undefined array size.
+    #define LULZBOT_NUM_SERVOS                     1
+    #define LULZBOT_SERVO_DELAY                  { 50 }
+    // TODO(hardware): -1.375 (the stock default below) is calibrated
+    // for the nozzle-contact probe's trigger height, not a BLTouch's.
+    // This placeholder MUST be replaced with a real G29/M851
+    // measurement on the actual printer before trusting a print.
+    #define LULZBOT_Z_PROBE_OFFSET_FROM_EXTRUDER -1.0
+#endif // LULZBOT_USE_BLTOUCH
+
 #define LULZBOT_MULTIPLE_PROBING              2
+// TODO(hardware): 0,0 assumes the probe is directly under the nozzle in
+// X/Y. Unverified for the BLTouch mount - if it physically offsets the
+// probe tip from the nozzle (typical for BLTouch mounts), these need
+// real measurement, and LULZBOT_Z_SAFE_HOMING_X/Y_POINT above may need
+// to change to match.
 #define LULZBOT_X_PROBE_OFFSET_FROM_EXTRUDER  0
 #define LULZBOT_Y_PROBE_OFFSET_FROM_EXTRUDER  0
 #define LULZBOT_Z_PROBE_OFFSET_RANGE_MIN      -2
@@ -849,6 +910,13 @@
 
 /* We need to disable the extruder motor during probing as
    it causes noise on the probe line of some Minis.
+
+   This was written for the stock resistive nozzle-contact probe's raw
+   signal line. BLTouch's signal path is a clean digital trigger and
+   far less EMI-sensitive, so this is probably unnecessary overhead
+   for the BLTouch build - but it's still harmless to keep, so it is
+   left enabled here rather than silently dropped without hardware
+   testing to confirm it's safe to remove.
  */
 #if defined(LULZBOT_IS_MINI)
     #define LULZBOT_EXTRUDER_MOTOR_SHUTOFF_ON_PROBE(probing) \
@@ -1646,8 +1714,13 @@
     #define LULZBOT_USE_XMAX_PLUG
 #endif
 
-// Z-Max Endstops were introduced on the Mini and TAZ 6
-#if defined(LULZBOT_IS_MINI) || (defined(LULZBOT_IS_TAZ) && !defined(LULZBOT_USE_HOME_BUTTON))
+// Z-Max Endstops were introduced on the Mini and TAZ 6. On the BLTouch
+// build, the Mini's Z-max pin (23) has been repurposed as the BLTouch
+// servo/control line (see SERVO0_PIN in Configuration_adv.h) and the
+// mechanical Z-max switch physically removed, so don't enable a Z-max
+// plug for it - Marlin would otherwise try to read that pin as an
+// endstop input and drive it as a servo PWM output at the same time.
+#if (defined(LULZBOT_IS_MINI) && !defined(LULZBOT_USE_BLTOUCH)) || (defined(LULZBOT_IS_TAZ) && !defined(LULZBOT_USE_HOME_BUTTON))
     #define LULZBOT_USE_ZMAX_PLUG
 #endif
 

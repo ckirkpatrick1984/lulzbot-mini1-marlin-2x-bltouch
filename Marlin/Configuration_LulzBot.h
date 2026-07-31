@@ -48,4 +48,10 @@
 #define LULZBOT_Gladiola_MiniLCD
 #define TOOLHEAD_Gladiola_SingleExtruder
 
+// Project addition (not upstream LulzBot): this printer's stock
+// electrical bed-washer probe and Z-max homing switch have been
+// replaced with a BLTouch. Comment this out to build the stock,
+// unmodified Mini 1 LCD configuration instead.
+#define LULZBOT_USE_BLTOUCH
+
 #endif /* CONFIGURATION_LULZBOT */

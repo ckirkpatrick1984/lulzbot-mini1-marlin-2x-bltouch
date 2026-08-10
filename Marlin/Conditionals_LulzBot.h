@@ -846,28 +846,50 @@
     // sibling TAZ 6 build for exactly the same reason, and the Mini's
     // stock numbers are worse - all four corners are off-bed, not two.
     //
-    // Replaced with a plain margin inset from the bed's own real extent,
-    // the same stock-BLTouch-style approach used in the TAZ 6 repo:
-    // LEFT/FRONT 10, RIGHT/BACK 145. With a 3x3 grid (see
-    // LULZBOT_GRID_MAX_POINTS_X/Y below) that probes at 10 / 77.5 / 145
-    // on each axis - the two edges and dead center, 67.5mm apart.
+    // Replaced with a margin inset from the bed's own real extent, the
+    // same stock-BLTouch-style approach used in the TAZ 6 repo, then
+    // constrained by what the measured probe offset can actually reach.
     //
-    // TODO(hardware): these are sized for the current UNMEASURED 0,0
-    // X/Y probe offset, where probe position == nozzle position.
-    // Once the real BLTouch mount offset is measured, RE-CHECK THESE:
-    // Marlin's G29 tests whether the grid's diagonal corners are
-    // reachable *by the probe* before probing anything and silently
-    // aborts with "? (L,R,F,B) out of bounds." on the serial console if
-    // they are not (from the LCD that looks exactly like G29 doing
-    // nothing after G28's homing move). Reachability is not binding at
-    // 0,0 - the head travels X=[-3,162], Y=[-7,190], comfortably past
-    // 10..145 on both axes - but a large offset eats directly into that
-    // margin. This is precisely what bit the TAZ 6 build.
+    // REACHABILITY - this is the part that is easy to get wrong, and it
+    // is what broke G29 on the TAZ 6. Marlin places the *probe* at these
+    // coordinates, so the NOZZLE must travel to (coordinate - offset).
+    // G29 checks both the nozzle target and the probe coordinate against
+    // the machine bounds for the grid's diagonal corners *before*
+    // probing anything (position_is_reachable_by_probe(), motion.h) and
+    // returns immediately with "? (L,R,F,B) out of bounds." on the
+    // serial console if either fails - from the LCD that looks exactly
+    // like G29 doing nothing after G28's homing move.
+    //
+    // With the measured offset (X +47, probe to the RIGHT of the nozzle;
+    // Y -36, probe IN FRONT of it) and this printer's travel of
+    // X=[-3,162], Y=[-7,190]:
+    //
+    //   LEFT  50 -> nozzle X = 50-47   =   3  (min -3, 6mm margin)
+    //   RIGHT 145 -> nozzle X = 145-47 =  98  (max 162, ample)
+    //   FRONT  10 -> nozzle Y = 10+36  =  46  (min -7, ample)
+    //   BACK  145 -> nozzle Y = 145+36 = 181  (max 190, 9mm margin)
+    //
+    // LEFT is the binding constraint: the hard floor is 44 (any lower
+    // and the nozzle would need to go past X_MIN_POS), so 50 is the
+    // nearest round number with real margin for calibration slop.
+    // MIN_PROBE_EDGE is 0 and motion.h's reachability slop is 0.0001mm,
+    // so there is no hidden allowance beyond what is shown above.
+    //
+    // CONSEQUENCE, worth knowing rather than discovering: the 47mm X
+    // offset means the left ~50mm of this 155mm bed cannot be reached by
+    // the probe at all. The mesh therefore covers X=[50,145], and X=[0,50]
+    // gets the height of the nearest probed edge (Marlin's default -
+    // EXTRAPOLATE_BEYOND_GRID is off in Configuration.h, which holds the
+    // edge value flat rather than extending the measured tilt; flat is
+    // the safer choice over a gap this wide, but it is a one-line change
+    // if the left edge turns out to need the tilt carried out). Y is
+    // unaffected - the probe being in front of the nozzle costs nothing
+    // here, since the head has 190mm of Y travel to reach the back.
     #undef  LULZBOT_STANDARD_LEFT_PROBE_BED_POSITION
     #undef  LULZBOT_STANDARD_RIGHT_PROBE_BED_POSITION
     #undef  LULZBOT_STANDARD_FRONT_PROBE_BED_POSITION
     #undef  LULZBOT_STANDARD_BACK_PROBE_BED_POSITION
-    #define LULZBOT_STANDARD_LEFT_PROBE_BED_POSITION       10
+    #define LULZBOT_STANDARD_LEFT_PROBE_BED_POSITION       50
     #define LULZBOT_STANDARD_RIGHT_PROBE_BED_POSITION     145
     #define LULZBOT_STANDARD_FRONT_PROBE_BED_POSITION      10
     #define LULZBOT_STANDARD_BACK_PROBE_BED_POSITION      145
@@ -891,10 +913,12 @@
   #if defined(LULZBOT_AUTO_BED_LEVELING_BILINEAR)
     // Real multi-point mesh, made practical by the BLTouch. 3x3 rather
     // than the sibling TAZ 6 build's 5x5: this bed is only 155mm square,
-    // so a 3x3 already samples the two edges and dead center at 67.5mm
-    // spacing (10 / 77.5 / 145 - see the BLTouch grid boundary override
-    // above) and the extra 16 probe points a 5x5 costs aren't worth the
-    // probing time on a bed this small. Deliberate divergence from the
+    // so a 3x3 already samples both edges and the middle of the
+    // reachable area - X at 50 / 97.5 / 145 and Y at 10 / 77.5 / 145,
+    // see the BLTouch grid boundary override above - and the extra 16
+    // probe points a 5x5 costs aren't worth the probing time on a bed
+    // this small, the more so with the probe's X offset already ruling
+    // out the left third of it. Deliberate divergence from the
     // TAZ, not an oversight. GRID_MAX_POINTS_X/Y can go up to 15 if
     // tuning on hardware shows a finer mesh is actually worthwhile.
     #define LULZBOT_GRID_MAX_POINTS_X            3
@@ -958,27 +982,45 @@
     // explicitly here or the build fails on an undefined array size.
     #define LULZBOT_NUM_SERVOS                     1
     #define LULZBOT_SERVO_DELAY                  { 50 }
-    // TODO(hardware): -1.375 (the stock default below) is calibrated
-    // for the nozzle-contact probe's trigger height, not a BLTouch's,
-    // and -1.0 here is no better - it is a placeholder, NOT a
-    // measurement. To replace it: with the head parked and the BLTouch
-    // pin deployed, measure how far the extended pin tip sits BELOW the
-    // nozzle tip and enter that as a negative number (the sibling TAZ 6
-    // build measured 3mm, i.e. -3.0; this mount is different hardware,
-    // so measure it, don't copy it). That mechanical number is only a
-    // starting point - fine-tune it afterwards with the standard M851
-    // paper test on the real printer before trusting a print.
-    #define LULZBOT_Z_PROBE_OFFSET_FROM_EXTRUDER -1.0
-    // TODO(hardware): the BLTouch's X/Y offset from the nozzle has not
-    // been measured on this printer, so no override is defined here and
-    // the 0,0 fallback below applies (probe directly under the nozzle).
-    // To replace it: measure how far the probe tip sits from the nozzle
-    // tip in X and Y and define LULZBOT_X/Y_PROBE_OFFSET_FROM_EXTRUDER
-    // *here*, inside this block, using Configuration.h's sign convention
-    // ("-left +right" for X, "-front +behind" for Y). Both must be whole
-    // integers - SanityCheck.h has a FLOOR(x)==x static_assert - so
-    // round to the nearest millimetre. Then re-check the BLTouch probe
-    // grid boundaries above, which are currently sized assuming 0,0.
+    // User-measured: the BLTouch pin, fully extended, sits 3mm below the
+    // nozzle tip - so the probe triggers before the nozzle would reach
+    // the bed, which is the whole point of the offset (Z offset is
+    // negative when the probe is below the nozzle, per the sign
+    // convention in Configuration.h). Replaces the earlier -1.0
+    // placeholder, which was itself only a guess at replacing the stock
+    // -1.375 calibrated for the old nozzle-contact probe.
+    // TODO(hardware): this 3mm mechanical measurement is a starting
+    // point, not a substitute for the standard M851 paper-test
+    // calibration on the real printer.
+    #define LULZBOT_Z_PROBE_OFFSET_FROM_EXTRUDER -3.0
+    // The stock range below is -2..5, which would make the -3.0 above
+    // impossible to actually calibrate: M851 hard-rejects any value
+    // outside this range ("?Z out of range", M851.cpp) and the LCD's
+    // "Probe Z Offset" editor clamps to it, so the paper test could
+    // never be dialled in past -2. Widened to -5 for the BLTouch build
+    // only, leaving room to tune below the mechanical 3mm measurement.
+    // (Defined here rather than #undef'd later because the stock
+    // definition below is a fallback, which this pre-empts.)
+    #define LULZBOT_Z_PROBE_OFFSET_RANGE_MIN     -5
+    // User-measured BLTouch-to-nozzle offset: the probe sits ~46.9mm to
+    // the RIGHT of and ~35.7mm IN FRONT OF the nozzle (facing the
+    // printer's front). X_PROBE_OFFSET_FROM_EXTRUDER is "-left +right"
+    // and Y is "-front +behind" (see the comment in Configuration.h),
+    // so X is positive and Y is negative. Rounded to the nearest whole
+    // millimetre because SanityCheck.h requires integers here
+    // (FLOOR(x)==x static_assert) - up to ~0.5mm of placement error
+    // versus the raw measurement is an expected, unavoidable
+    // consequence of that firmware constraint, not a bug.
+    //
+    // Scoped inside this block deliberately, not on the unconditional
+    // fallback below: this offset is specific to the physical BLTouch
+    // mount, and the stock bed-washer probe genuinely has none (the
+    // nozzle itself is the probe).
+    //
+    // The X offset in particular drives the probe grid boundaries above
+    // - see the note there. TODO(hardware): NOT yet flash-tested.
+    #define LULZBOT_X_PROBE_OFFSET_FROM_EXTRUDER  47
+    #define LULZBOT_Y_PROBE_OFFSET_FROM_EXTRUDER -36
 #endif // LULZBOT_USE_BLTOUCH
 
 #define LULZBOT_MULTIPLE_PROBING              2
@@ -996,7 +1038,12 @@
 #if !defined(LULZBOT_Y_PROBE_OFFSET_FROM_EXTRUDER)
     #define LULZBOT_Y_PROBE_OFFSET_FROM_EXTRUDER  0
 #endif
-#define LULZBOT_Z_PROBE_OFFSET_RANGE_MIN      -2
+// Same fallback idiom as the X/Y offsets above: the BLTouch build widens
+// RANGE_MIN so its larger Z offset is reachable by M851 and the LCD's
+// Z-offset editor, and must not have that silently reverted here.
+#if !defined(LULZBOT_Z_PROBE_OFFSET_RANGE_MIN)
+    #define LULZBOT_Z_PROBE_OFFSET_RANGE_MIN  -2
+#endif
 #define LULZBOT_Z_PROBE_OFFSET_RANGE_MAX      5
 #define LULZBOT_XY_PROBE_SPEED                6000
 #define LULZBOT_Z_PROBE_SPEED_SLOW           (1*60)

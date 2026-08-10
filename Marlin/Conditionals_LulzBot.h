@@ -2181,7 +2181,27 @@
 
 /*************************** REWIPE FUNCTIONALITY *******************************/
 
-#if defined(LULZBOT_USE_AUTOLEVELING)
+// Project note (not upstream LulzBot): this entire block is stock
+// behavior for the old electrical bed-washer probe - on any probe point
+// failure it automatically reheats to 170C, moves to the physical wiper
+// pad, wipes the nozzle, drops back to 160C and retries the whole G29 up
+// to LULZBOT_G29_MAX_RETRIES times. (G29_RETRY_AND_RECOVER is a real
+// Marlin core feature, but off by default upstream - LulzBot forces it
+// on unconditionally for every printer with autoleveling.) On the
+// sibling TAZ 6 build this was confirmed via a real serial log to be the
+// cause of "Level Bed touches 3 spots, then heats up and goes clean the
+// nozzle": one grid point failed to trigger, and that kicked off the
+// whole reheat/rewipe/retry sequence, which masks the actual failure.
+// None of it applies to a BLTouch, which has no nozzle contact to
+// contaminate, so it is disabled here for LULZBOT_USE_BLTOUCH - G29 then
+// uses Marlin's own bare default: a probe point either succeeds or the
+// whole G29 fails outright, no automatic retry/reheat/rewipe.
+//
+// Side effect worth knowing: LULZBOT_USE_PRE_GLADIOLA_G29_WORKAROUND
+// (set alongside the stock Gladiola probe positions further up) becomes
+// dead code under BLTouch. Its only consumer is
+// LULZBOT_G29_RECOVER_COMMANDS, which lives inside this block.
+#if defined(LULZBOT_USE_AUTOLEVELING) && !defined(LULZBOT_USE_BLTOUCH)
     //#define LULZBOT_DEBUG_MACROS // Uncomment to debug macro expansions
 
     #define LULZBOT_G29_RETRY_AND_RECOVER
@@ -2287,7 +2307,27 @@
         #error Dump complete
     #endif
 #else
-    #define LULZBOT_Z_PROBE_LOW_POINT    0
+    // LULZBOT_Z_PROBE_LOW_POINT is unrelated to the rewipe/retry
+    // machinery above despite sharing this conditional - it controls how
+    // far past the expected trigger point (probe.cpp's run_z_probe(),
+    // z_probe_low_point = -Z_PROBE_OFFSET_FROM_EXTRUDER +
+    // Z_PROBE_LOW_POINT) the probe may travel before giving up and
+    // returning NAN ("Autolevel failed") for that point. Since it is
+    // added straight onto the expected-trigger Z, its magnitude IS the
+    // search margin below that point, whatever the offset is set to.
+    //
+    // Disabling the block above for BLTouch drops this build through to
+    // here, where the stock value was 0 - i.e. zero margin, and actually
+    // worse than the Mini's own stock LULZBOT_Z_PROBE_LOW_POINT of -4
+    // inside that block. On the sibling TAZ 6 build a zero-margin window
+    // was the confirmed cause of "G29 fails at a different grid point on
+    // each printer": real per-printer bed deviation exceeded the window
+    // at different locations. Set to Marlin's own stock default instead
+    // (Conditionals_LCD.h's "#ifndef Z_PROBE_LOW_POINT" fallback, -5),
+    // giving 5mm of search margin past the expected trigger point -
+    // which matters most on an as-yet-uncalibrated bed with a
+    // placeholder Z probe offset, exactly this build's situation.
+    #define LULZBOT_Z_PROBE_LOW_POINT   -5
 #endif
 
 /******************************** PROBE QUALITY CHECK *************************/

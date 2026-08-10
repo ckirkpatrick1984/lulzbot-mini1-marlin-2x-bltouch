@@ -959,20 +959,43 @@
     #define LULZBOT_NUM_SERVOS                     1
     #define LULZBOT_SERVO_DELAY                  { 50 }
     // TODO(hardware): -1.375 (the stock default below) is calibrated
-    // for the nozzle-contact probe's trigger height, not a BLTouch's.
-    // This placeholder MUST be replaced with a real G29/M851
-    // measurement on the actual printer before trusting a print.
+    // for the nozzle-contact probe's trigger height, not a BLTouch's,
+    // and -1.0 here is no better - it is a placeholder, NOT a
+    // measurement. To replace it: with the head parked and the BLTouch
+    // pin deployed, measure how far the extended pin tip sits BELOW the
+    // nozzle tip and enter that as a negative number (the sibling TAZ 6
+    // build measured 3mm, i.e. -3.0; this mount is different hardware,
+    // so measure it, don't copy it). That mechanical number is only a
+    // starting point - fine-tune it afterwards with the standard M851
+    // paper test on the real printer before trusting a print.
     #define LULZBOT_Z_PROBE_OFFSET_FROM_EXTRUDER -1.0
+    // TODO(hardware): the BLTouch's X/Y offset from the nozzle has not
+    // been measured on this printer, so no override is defined here and
+    // the 0,0 fallback below applies (probe directly under the nozzle).
+    // To replace it: measure how far the probe tip sits from the nozzle
+    // tip in X and Y and define LULZBOT_X/Y_PROBE_OFFSET_FROM_EXTRUDER
+    // *here*, inside this block, using Configuration.h's sign convention
+    // ("-left +right" for X, "-front +behind" for Y). Both must be whole
+    // integers - SanityCheck.h has a FLOOR(x)==x static_assert - so
+    // round to the nearest millimetre. Then re-check the BLTouch probe
+    // grid boundaries above, which are currently sized assuming 0,0.
 #endif // LULZBOT_USE_BLTOUCH
 
 #define LULZBOT_MULTIPLE_PROBING              2
-// TODO(hardware): 0,0 assumes the probe is directly under the nozzle in
-// X/Y. Unverified for the BLTouch mount - if it physically offsets the
-// probe tip from the nozzle (typical for BLTouch mounts), these need
-// real measurement, and LULZBOT_Z_SAFE_HOMING_X/Y_POINT above may need
-// to change to match.
-#define LULZBOT_X_PROBE_OFFSET_FROM_EXTRUDER  0
-#define LULZBOT_Y_PROBE_OFFSET_FROM_EXTRUDER  0
+// Default: probe directly under the nozzle in X/Y. Correct for the stock
+// electrical bed-washer probe (the nozzle itself is the probe, so there
+// is no physical offset), and used as the fallback for any build that
+// doesn't define its own measured offset above. Deliberately a
+// "define if not already defined" fallback rather than an unconditional
+// define: a measured BLTouch mount offset belongs inside the
+// LULZBOT_USE_BLTOUCH block, and editing these lines in place would
+// silently apply it to the stock probe build too, where 0,0 is right.
+#if !defined(LULZBOT_X_PROBE_OFFSET_FROM_EXTRUDER)
+    #define LULZBOT_X_PROBE_OFFSET_FROM_EXTRUDER  0
+#endif
+#if !defined(LULZBOT_Y_PROBE_OFFSET_FROM_EXTRUDER)
+    #define LULZBOT_Y_PROBE_OFFSET_FROM_EXTRUDER  0
+#endif
 #define LULZBOT_Z_PROBE_OFFSET_RANGE_MIN      -2
 #define LULZBOT_Z_PROBE_OFFSET_RANGE_MAX      5
 #define LULZBOT_XY_PROBE_SPEED                6000

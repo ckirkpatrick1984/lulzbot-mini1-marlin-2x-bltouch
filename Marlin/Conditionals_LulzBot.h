@@ -712,14 +712,31 @@
 #elif defined(LULZBOT_IS_MINI) && defined(LULZBOT_USE_BLTOUCH)
     // Z now homes using the BLTouch, so XY must be at a safe,
     // reachable point over the bed before Z homes.
-    // TODO(hardware): (80,80) is an UNVERIFIED placeholder near bed
-    // center, carried over as a starting point only - it has not been
-    // measured/confirmed safe on this hardware. Re-tune on the actual
-    // printer once the real X/Y probe offset is known (see
-    // LULZBOT_X_PROBE_OFFSET_FROM_EXTRUDER / Y below, also unverified).
+    //
+    // X/Y set to X_CENTER/Y_CENTER - Marlin's own built-in bed-center
+    // macros (src/inc/Conditionals_post.h, "((X_BED_SIZE) / 2)"), not a
+    // LulzBot-specific number and not the hardcoded (80,80) placeholder
+    // this used to carry. That file's own #ifndef fallback for
+    // Z_SAFE_HOMING_X/Y_POINT under BILINEAR leveling is literally
+    // "_SAFE_POINT(A) = A_CENTER", so this is textbook stock Marlin
+    // behavior rather than a per-printer override, and it self-adjusts
+    // if the bed size config ever changes. Resolves to 77 today -
+    // X_BED_SIZE/Y_BED_SIZE are both 155 and every term is an integer
+    // literal, so this is integer division, half a millimetre short of
+    // true center. That is stock Marlin behavior (its own X_CENTER
+    // rounds the same way) and irrelevant for a safe homing point.
+    //
+    // Z_SAFE_HOMING_X/Y_POINT is where the *probe* ends up, not the
+    // nozzle - Marlin's home_z_safely() (G28.cpp) subtracts
+    // LULZBOT_X/Y_PROBE_OFFSET_FROM_EXTRUDER to compute the actual
+    // nozzle move. Those are still 0,0 on this build (unmeasured), so
+    // probe and nozzle coincide for now; once the real BLTouch mount
+    // offset is measured this point does NOT need to change, but the
+    // probe grid boundaries below do - see the LULZBOT_MINI_BED BLTouch
+    // override there.
     #define LULZBOT_Z_SAFE_HOMING
-    #define LULZBOT_Z_SAFE_HOMING_X_POINT         80
-    #define LULZBOT_Z_SAFE_HOMING_Y_POINT         80
+    #define LULZBOT_Z_SAFE_HOMING_X_POINT         X_CENTER
+    #define LULZBOT_Z_SAFE_HOMING_Y_POINT         Y_CENTER
     #define LULZBOT_Z_HOMING_HEIGHT               4
 #else
     // On the Mini, raise nozzle to clear wiper pad before homing
@@ -808,6 +825,54 @@
     #define LULZBOT_STANDARD_FRONT_PROBE_BED_POSITION      -9
 #endif
 
+#if defined(LULZBOT_USE_BLTOUCH) && defined(LULZBOT_MINI_BED)
+    // Project fix (not upstream LulzBot): every one of the stock
+    // Gladiola grid boundaries above is OFF the physical bed. The bed's
+    // real coordinate extent is X=[0,155], Y=[0,155]
+    // (LULZBOT_STANDARD_X/Y_BED_SIZE are both 155, BED_CENTER_AT_0_0 is
+    // not defined), but the stock values are LEFT = X_MIN_POS (-3),
+    // FRONT = Y_MIN_POS (-7) - literally "right against the left and
+    // front endstops", which that block's own comment already calls
+    // "extremely problematic" - and RIGHT = BACK = 161, which is past
+    // the far edge of the 155mm bed.
+    //
+    // Those targets made sense for the stock electrical bed-washer
+    // probe, whose corner washers are physically mounted outside the
+    // print surface. They do not survive a BLTouch: Marlin always
+    // places the *probe itself* exactly at these coordinates (see
+    // home_z_safely()/probe_pt()), so a BLTouch aimed at them is by
+    // definition sent to hang off the edge of the bed with nothing
+    // underneath to trigger on. This was watched happening on the
+    // sibling TAZ 6 build for exactly the same reason, and the Mini's
+    // stock numbers are worse - all four corners are off-bed, not two.
+    //
+    // Replaced with a plain margin inset from the bed's own real extent,
+    // the same stock-BLTouch-style approach used in the TAZ 6 repo:
+    // LEFT/FRONT 10, RIGHT/BACK 145. With a 3x3 grid (see
+    // LULZBOT_GRID_MAX_POINTS_X/Y below) that probes at 10 / 77.5 / 145
+    // on each axis - the two edges and dead center, 67.5mm apart.
+    //
+    // TODO(hardware): these are sized for the current UNMEASURED 0,0
+    // X/Y probe offset, where probe position == nozzle position.
+    // Once the real BLTouch mount offset is measured, RE-CHECK THESE:
+    // Marlin's G29 tests whether the grid's diagonal corners are
+    // reachable *by the probe* before probing anything and silently
+    // aborts with "? (L,R,F,B) out of bounds." on the serial console if
+    // they are not (from the LCD that looks exactly like G29 doing
+    // nothing after G28's homing move). Reachability is not binding at
+    // 0,0 - the head travels X=[-3,162], Y=[-7,190], comfortably past
+    // 10..145 on both axes - but a large offset eats directly into that
+    // margin. This is precisely what bit the TAZ 6 build.
+    #undef  LULZBOT_STANDARD_LEFT_PROBE_BED_POSITION
+    #undef  LULZBOT_STANDARD_RIGHT_PROBE_BED_POSITION
+    #undef  LULZBOT_STANDARD_FRONT_PROBE_BED_POSITION
+    #undef  LULZBOT_STANDARD_BACK_PROBE_BED_POSITION
+    #define LULZBOT_STANDARD_LEFT_PROBE_BED_POSITION       10
+    #define LULZBOT_STANDARD_RIGHT_PROBE_BED_POSITION     145
+    #define LULZBOT_STANDARD_FRONT_PROBE_BED_POSITION      10
+    #define LULZBOT_STANDARD_BACK_PROBE_BED_POSITION      145
+#endif
+
 #if defined(LULZBOT_USE_AUTOLEVELING)
     #define LULZBOT_RESTORE_LEVELING_AFTER_G28
     #define LULZBOT_NOZZLE_CLEAN_FEATURE
@@ -824,27 +889,40 @@
 
 #if defined(LULZBOT_AUTO_BED_LEVELING_LINEAR) || defined(LULZBOT_AUTO_BED_LEVELING_BILINEAR)
   #if defined(LULZBOT_AUTO_BED_LEVELING_BILINEAR)
-    // Real multi-point mesh, made practical by the BLTouch. 5x5 is a
-    // reasonable starting grid, not a calibrated-precise number -
-    // GRID_MAX_POINTS_X/Y can go up to 15 if tuning on hardware shows
-    // a finer mesh is worthwhile.
-    #define LULZBOT_GRID_MAX_POINTS_X            5
-    #define LULZBOT_GRID_MAX_POINTS_Y            5
+    // Real multi-point mesh, made practical by the BLTouch. 3x3 rather
+    // than the sibling TAZ 6 build's 5x5: this bed is only 155mm square,
+    // so a 3x3 already samples the two edges and dead center at 67.5mm
+    // spacing (10 / 77.5 / 145 - see the BLTouch grid boundary override
+    // above) and the extra 16 probe points a 5x5 costs aren't worth the
+    // probing time on a bed this small. Deliberate divergence from the
+    // TAZ, not an oversight. GRID_MAX_POINTS_X/Y can go up to 15 if
+    // tuning on hardware shows a finer mesh is actually worthwhile.
+    #define LULZBOT_GRID_MAX_POINTS_X            3
+    #define LULZBOT_GRID_MAX_POINTS_Y            3
   #else
     // Traditionally LulzBot printers have employed a four-point leveling
     // using a degenerate 2x2 grid. This is the traditional behavior.
     #define LULZBOT_GRID_MAX_POINTS_X            2
     #define LULZBOT_GRID_MAX_POINTS_Y            2
   #endif
-  #if defined(LULZBOT_IS_MINI)
+  #if defined(LULZBOT_IS_MINI) && !defined(LULZBOT_USE_BLTOUCH)
     // We can't control the order of probe points exactly, but
     // this makes the probe start closer to the wiper pad.
     #define LULZBOT_PROBE_Y_FIRST
-  #else
+  #elif !defined(LULZBOT_IS_MINI)
     // Restore the old probe sequence on the TAZ that starts
     // probing on the washer underneath the wiper pad.
     #define LULZBOT_LAST_PROBE_POINT_ON_BACK_LEFT_CORNER
   #endif
+  // Project note: LULZBOT_PROBE_Y_FIRST reorders G29's grid traversal
+  // (it feeds Marlin's own PROBE_Y_FIRST in Configuration.h) purely to
+  // start the sequence nearer the wiper pad - a stock bed-washer-probe
+  // workflow concern, per its own comment above, and meaningless with a
+  // BLTouch that never needs wiping between points. Left undefined for
+  // LULZBOT_USE_BLTOUCH so the grid uses Marlin's own default zigzag
+  // order instead. Mirrors the equivalent change made in the sibling
+  // TAZ 6 repo, which disabled that build's
+  // LULZBOT_LAST_PROBE_POINT_ON_BACK_LEFT_CORNER for the same reason.
 #endif
 
 /* Make sure Marlin allows probe points outside of the bed area */

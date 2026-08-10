@@ -2453,7 +2453,13 @@
     #define LULZBOT_HIDE_EXTRA_FAN_CONFIG_IN_LCD
     #define LULZBOT_HIDE_PREHEAT_CHOICES
     #define LULZBOT_HIDE_INITIALIZE_EEPROM
-    #define LULZBOT_NO_BED_LEVELING_IN_LCD
+    // Project addition (not upstream LulzBot): stock LulzBot firmware hides
+    // "Level Bed" from the LCD menu here. Now that this Mini has a BLTouch
+    // (auto probe, not a manual/guided mesh), re-expose it so G28+G29 can be
+    // triggered from the LCD instead of only from a slicer start script.
+    #if !defined(LULZBOT_USE_BLTOUCH)
+        #define LULZBOT_NO_BED_LEVELING_IN_LCD
+    #endif
     #define LULZBOT_PRECISION_ZOFFSET ftostr52
     #define LULZBOT_LCD_SET_PROGRESS_MANUALLY
     #define LULZBOT_SCROLL_LONG_FILENAMES

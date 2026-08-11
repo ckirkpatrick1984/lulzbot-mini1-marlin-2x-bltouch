@@ -76,6 +76,26 @@ void LULZBOT_ON_REFLASH() {
  *   Z_MIN_PIN corresponds to the Z-Home push button.
  *   Z_MIN_PROBE_PIN are the bed washers.
  */
+/* Project change (not upstream LulzBot): with a BLTouch, the "disable"
+ * half of this must NOT drive the pin. Z_MIN_PIN is the stock bed-washer
+ * probe's passive contact - grounding it as an output when idle is a
+ * sound EMI measure for a bare wire to a washer. It is wrong for a
+ * BLTouch: that same pin is now the BLTouch's signal OUTPUT, and a
+ * BLTouch v3 drives it push-pull, so LULZBOT_EMI_SHUTOFF puts the AVR's
+ * output driver in direct contention with the BLTouch's whenever the
+ * probe reports a trigger outside G28/G29/M119 - a dead short between
+ * two active drivers, which risks both the probe and the MCU pin.
+ *
+ * For the BLTouch build the pin is therefore left as a pulled-up input
+ * at all times. The EMI rationale doesn't transfer anyway: a BLTouch
+ * signal line is an actively driven digital output, not a long passive
+ * wire to a capacitive bed, so there is no floating line to quiet.
+ */
+#if defined(LULZBOT_USE_BLTOUCH)
+    #define LULZBOT_SET_PIN_STATE(pin, enable) \
+        SET_INPUT(pin); \
+        WRITE(pin, HIGH);
+#else
 #define LULZBOT_SET_PIN_STATE(pin, enable) \
     if(enable) { \
         /* Set as inputs with pull-up resistor */ \
@@ -85,6 +105,7 @@ void LULZBOT_ON_REFLASH() {
     } else { \
         LULZBOT_EMI_SHUTOFF(pin); \
     }
+#endif
 
 #if defined(LULZBOT_USE_AUTOLEVELING) && !defined(LULZBOT_Z_MIN_PROBE_PIN)
 

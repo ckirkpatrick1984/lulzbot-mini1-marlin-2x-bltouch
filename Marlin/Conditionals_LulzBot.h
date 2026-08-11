@@ -632,7 +632,12 @@
     #define LULZBOT_X_HOME_DIR             -1 // Home left
     #define LULZBOT_Y_HOME_DIR              1 // Home bed forward
     #define LULZBOT_Z_HOME_DIR             -1 // Home towards bed (BLTouch)
-    #define LULZBOT_QUICK_HOME
+    // QUICK_HOME (stock LulzBot, kept in the non-BLTouch branch below)
+    // homes X and Y *simultaneously* as one diagonal move. Deliberately
+    // not used here, by explicit request: this build homes X, then Y,
+    // then moves to bed center and homes Z on the BLTouch - the plain
+    // stock-Marlin sequence, one axis at a time, which is also far
+    // easier to watch and abort during bring-up.
 
 #elif defined(LULZBOT_IS_MINI)
     #define LULZBOT_X_HOME_DIR             -1 // Home left

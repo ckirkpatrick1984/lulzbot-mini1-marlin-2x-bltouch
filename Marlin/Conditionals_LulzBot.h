@@ -1129,12 +1129,25 @@
     #define LULZBOT_MENU_AXIS_LEVELING_COMMANDS ""
 #endif
 
-#if defined(LULZBOT_USE_Z_SCREW)
+#if defined(LULZBOT_USE_Z_SCREW) && !defined(LULZBOT_USE_BLTOUCH)
     // The older Minis seem succeptible to noise in the probe lines.
     // This restores the sampling of endstops as it existed in previous
     // version of Marlin.
     #define LULZBOT_ENDSTOP_NOISE_THRESHOLD 2
 #endif
+// Project change (not upstream LulzBot): the noise threshold above is a
+// stock-probe workaround, and it is disabled for the BLTouch build.
+// It exists because the old electrical bed-washer probe's signal is a
+// bare wire to a metal washer on a heated, capacitively-coupled bed -
+// genuinely noisy, and prone to false triggers. It makes Marlin require
+// the endstop to read the same value on N consecutive samples before it
+// believes it. A BLTouch's signal is an actively driven, debounced
+// digital output with none of that problem, so the threshold buys
+// nothing and costs something real: Marlin's own note on this option is
+// "higher values may affect repeatability or accuracy of some bed
+// probes", because the confirmation samples delay trigger detection -
+// on a fast homing move that means the axis keeps travelling after the
+// probe has already fired.
 
 /*************************** COMMON TOOLHEADS PARAMETERS ***********************/
 

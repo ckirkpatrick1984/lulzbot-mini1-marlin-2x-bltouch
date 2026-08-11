@@ -632,12 +632,7 @@
     #define LULZBOT_X_HOME_DIR             -1 // Home left
     #define LULZBOT_Y_HOME_DIR              1 // Home bed forward
     #define LULZBOT_Z_HOME_DIR             -1 // Home towards bed (BLTouch)
-    // QUICK_HOME (stock LulzBot, kept in the non-BLTouch branch below)
-    // homes X and Y *simultaneously* as one diagonal move. Deliberately
-    // not used here, by explicit request: this build homes X, then Y,
-    // then moves to bed center and homes Z on the BLTouch - the plain
-    // stock-Marlin sequence, one axis at a time, which is also far
-    // easier to watch and abort during bring-up.
+    #define LULZBOT_QUICK_HOME
 
 #elif defined(LULZBOT_IS_MINI)
     #define LULZBOT_X_HOME_DIR             -1 // Home left
@@ -742,10 +737,10 @@
     #define LULZBOT_Z_SAFE_HOMING
     #define LULZBOT_Z_SAFE_HOMING_X_POINT         X_CENTER
     #define LULZBOT_Z_SAFE_HOMING_Y_POINT         Y_CENTER
-    #define LULZBOT_Z_HOMING_HEIGHT               4
+    #define LULZBOT_Z_HOMING_HEIGHT               5
 #else
     // On the Mini, raise nozzle to clear wiper pad before homing
-    #define LULZBOT_Z_HOMING_HEIGHT               4
+    #define LULZBOT_Z_HOMING_HEIGHT               5
 #endif  // LULZBOT_USE_HOME_BUTTON
 
 #if defined(LULZBOT_USE_HOME_BUTTON) || defined(LULZBOT_SENSORLESS_HOMING) || defined(LULZBOT_ENDSTOPS_ALWAYS_ON_DEFAULT)
@@ -1129,25 +1124,12 @@
     #define LULZBOT_MENU_AXIS_LEVELING_COMMANDS ""
 #endif
 
-#if defined(LULZBOT_USE_Z_SCREW) && !defined(LULZBOT_USE_BLTOUCH)
+#if defined(LULZBOT_USE_Z_SCREW)
     // The older Minis seem succeptible to noise in the probe lines.
     // This restores the sampling of endstops as it existed in previous
     // version of Marlin.
     #define LULZBOT_ENDSTOP_NOISE_THRESHOLD 2
 #endif
-// Project change (not upstream LulzBot): the noise threshold above is a
-// stock-probe workaround, and it is disabled for the BLTouch build.
-// It exists because the old electrical bed-washer probe's signal is a
-// bare wire to a metal washer on a heated, capacitively-coupled bed -
-// genuinely noisy, and prone to false triggers. It makes Marlin require
-// the endstop to read the same value on N consecutive samples before it
-// believes it. A BLTouch's signal is an actively driven, debounced
-// digital output with none of that problem, so the threshold buys
-// nothing and costs something real: Marlin's own note on this option is
-// "higher values may affect repeatability or accuracy of some bed
-// probes", because the confirmation samples delay trigger detection -
-// on a fast homing move that means the axis keeps travelling after the
-// probe has already fired.
 
 /*************************** COMMON TOOLHEADS PARAMETERS ***********************/
 

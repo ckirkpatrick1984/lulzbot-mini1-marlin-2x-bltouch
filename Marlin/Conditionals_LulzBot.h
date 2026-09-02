@@ -975,6 +975,21 @@
 #if defined(LULZBOT_USE_BLTOUCH)
     #define LULZBOT_BLTOUCH
     #define LULZBOT_BLTOUCH_DELAY                375
+    // Safety: switch the probe into SW mode after each deploy. By
+    // default a BLTouch reports a trigger as a brief (~10ms) pulse; this
+    // fork has no ENDSTOP_INTERRUPTS_FEATURE, so endstops are polled in
+    // the stepper ISR and a short pulse has to coincide with a poll to
+    // be seen. A missed trigger means Z keeps descending - i.e. a nozzle
+    // crash. In SW mode the probe holds its output asserted instead of
+    // pulsing, so the triggered state cannot be missed, and a probe that
+    // is stuck triggered stays visibly triggered rather than looking
+    // idle. Marlin's own note calls this useful for "noisy or filtered
+    // input configurations", and bltouch.cpp's deploy_proc() describes
+    // it as "One of the recommended ANTClabs ways to probe".
+    // Mirrors the sibling TAZ 6 build. Deliberately NOT enabling
+    // BLTOUCH_HS_MODE: high-speed mode skips the per-move deploy
+    // verification that provides this protection.
+    #define LULZBOT_BLTOUCH_FORCE_SW_MODE
     // Configuration.h's NUM_SERVOS/SERVO_DELAY are unconditionally
     // indirected to these LULZBOT_* macros (LULZBOT_NUM_SERVOS is not
     // otherwise defined for the Mini), which defeats stock Marlin's own

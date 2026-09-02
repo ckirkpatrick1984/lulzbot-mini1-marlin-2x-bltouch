@@ -997,11 +997,18 @@
     // impossible to actually calibrate: M851 hard-rejects any value
     // outside this range ("?Z out of range", M851.cpp) and the LCD's
     // "Probe Z Offset" editor clamps to it, so the paper test could
-    // never be dialled in past -2. Widened to -5 for the BLTouch build
-    // only, leaving room to tune below the mechanical 3mm measurement.
+    // never be dialled in past -2. Confirmed on the TAZ 6's hardware,
+    // where exactly this limit blocked the offset from being set.
+    // Set to Marlin's own stock values (-20/+20, from
+    // Conditionals_post.h) rather than a narrower guessed-at pair: the
+    // correct offset is precisely what the paper test is meant to
+    // determine, so any self-imposed bound risks blocking it again.
+    // These only gate what M851 and the LCD editor accept - an input
+    // guardrail, not a safety mechanism.
     // (Defined here rather than #undef'd later because the stock
     // definition below is a fallback, which this pre-empts.)
-    #define LULZBOT_Z_PROBE_OFFSET_RANGE_MIN     -5
+    #define LULZBOT_Z_PROBE_OFFSET_RANGE_MIN    -20
+    #define LULZBOT_Z_PROBE_OFFSET_RANGE_MAX     20
     // User-measured BLTouch-to-nozzle offset: the probe sits ~46.9mm to
     // the RIGHT of and ~35.7mm IN FRONT OF the nozzle (facing the
     // printer's front). X_PROBE_OFFSET_FROM_EXTRUDER is "-left +right"
@@ -1044,7 +1051,9 @@
 #if !defined(LULZBOT_Z_PROBE_OFFSET_RANGE_MIN)
     #define LULZBOT_Z_PROBE_OFFSET_RANGE_MIN  -2
 #endif
-#define LULZBOT_Z_PROBE_OFFSET_RANGE_MAX      5
+#if !defined(LULZBOT_Z_PROBE_OFFSET_RANGE_MAX)
+    #define LULZBOT_Z_PROBE_OFFSET_RANGE_MAX   5
+#endif
 #define LULZBOT_XY_PROBE_SPEED                6000
 #define LULZBOT_Z_PROBE_SPEED_SLOW           (1*60)
 #if defined(LULZBOT_USE_Z_BELT)

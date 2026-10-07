@@ -777,6 +777,16 @@ float probe_pt(const float &rx, const float &ry, const ProbePtRaise raise_after/
   }
   else if (!position_is_reachable(nx, ny)) return NAN;        // The given position is in terms of the nozzle
 
+  #if ENABLED(BLTOUCH)
+    // Don't travel in XY at whatever height the previous operation left us
+    // at (e.g. down at the wiper pad after G12): the pin hangs below the
+    // nozzle and would drag across the bed. do_probe_raise() adds the
+    // (negative) Z offset, so this clears the *probe*, not just the nozzle.
+    // Only raises, never lowers. Later upstream Marlin does the same via
+    // its z_clearance argument to probe_at_point().
+    do_probe_raise(Z_CLEARANCE_BETWEEN_PROBES);
+  #endif
+
   const float nz =
     #if ENABLED(DELTA)
       // Move below clip height or xy move will be aborted by do_blocking_move_to

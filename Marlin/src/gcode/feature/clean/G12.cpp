@@ -59,6 +59,16 @@ void GcodeSuite::G12() {
 
   Nozzle::clean(pattern, strokes, radius, objects);
 
+  #if ENABLED(BLTOUCH)
+    // The wipe ends with the nozzle down at pad level. With a BLTouch the
+    // pin hangs ~3mm below the nozzle and, on the Mini, sits over the bed
+    // while the nozzle is on the pad, so lift clear before anything else
+    // moves in XY. (The stock LulzBot wipe sequence did this with a final
+    // "G1 Z15", but it is not used on BLTouch builds.)
+    if (current_position[Z_AXIS] < LULZBOT_BLTOUCH_SAFE_Z)
+      do_blocking_move_to_z(LULZBOT_BLTOUCH_SAFE_Z);
+  #endif
+
   // Re-enable bed level correction if it had been on
   #if HAS_LEVELING
     set_bed_leveling_enabled(was_enabled);

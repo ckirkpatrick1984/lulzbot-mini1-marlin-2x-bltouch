@@ -990,6 +990,15 @@
     // BLTOUCH_HS_MODE: high-speed mode skips the per-move deploy
     // verification that provides this protection.
     #define LULZBOT_BLTOUCH_FORCE_SW_MODE
+    // Height (mm, absolute Z) the head is lifted to after a "get out of the
+    // way" action - currently the nozzle wipe (G12, see G12.cpp). The
+    // stock LulzBot wipe ended with "G1 Z15" because only the nozzle hung
+    // below the carriage; the BLTouch pin sits another 3mm below the nozzle
+    // (see the Z offset below) and, on the Mini, ~36mm in front of it, so
+    // it is over the bed while the nozzle is at the back. 15 + 5 = 20, which
+    // also matches the Mini's NOZZLE_PARK_POINT Z. Raising too high is
+    // harmless (soft endstops clamp it); too low drags the probe pin.
+    #define LULZBOT_BLTOUCH_SAFE_Z                20
     // Configuration.h's NUM_SERVOS/SERVO_DELAY are unconditionally
     // indirected to these LULZBOT_* macros (LULZBOT_NUM_SERVOS is not
     // otherwise defined for the Mini), which defeats stock Marlin's own
@@ -2143,6 +2152,15 @@
 
 #if defined(LULZBOT_KangarooPaw_Experimental)
     #define LULZBOT_EVENT_GCODE_SD_STOP "G28 Z\nM117 Print aborted."
+
+#elif defined(LULZBOT_IS_MINI) && defined(LULZBOT_USE_BLTOUCH)
+    // "G28 Z" used to send the stock Mini's head to the top of the printer
+    // (Z homes up). With the BLTouch Z homes *down*: it would probe the bed
+    // (or the aborted print) and leave the nozzle ~3mm above it, then the
+    // XY park move drags the probe pin across the part. Lift the head
+    // instead, by the same amount the TAZ uses plus the BLTouch's 3mm
+    // (keep in step with LULZBOT_BLTOUCH_SAFE_Z's rationale).
+    #define LULZBOT_EVENT_GCODE_SD_STOP "G91\nG0 Z20 F600\nG90\nG0 X80 Y190 F3000\nM117 Print aborted."
 
 #elif defined(LULZBOT_IS_MINI)
     #define LULZBOT_EVENT_GCODE_SD_STOP "G28 Z\nG0 X80 Y190 F3000\nM117 Print aborted."

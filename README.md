@@ -49,10 +49,45 @@ Printer model is set in `Marlin/Configuration_LulzBot.h`:
 printers have the graphic LCD, not the headless/bare-board variant), with
 `TOOLHEAD_Gladiola_SingleExtruder` selected as the toolhead - the same
 printer/toolhead combination used in the working 1.x repo. This is
-otherwise a **stock, unmodified 2.0.0.144 checkout** - no BLTouch config
-has been added yet. That's tracked as follow-up work; see the umbrella
-`PROJECT.md` in the `lulzbot-marlin-bltouch` workspace folder for goals,
-background, and open questions across both Mini 1 repos.
+otherwise the LulzBot 2.0.0.144 core with a BLTouch conversion on top:
+`LULZBOT_USE_BLTOUCH` (in the same file) switches the Mini from its stock
+nozzle-contact probe to a BLTouch, which is now the sole Z reference
+(Z homes down at bed center, the stock rewipe/retry-on-probe-failure
+workflow is disabled). **The BLTouch works on real hardware** (confirmed
+2026-09-02). Decision history and open questions are in the umbrella
+`PROJECT.md` in the `lulzbot-marlin-bltouch` workspace folder.
+
+## Prebuilt firmware
+
+A ready-to-flash **`firmware.hex`** is committed at the repo root, built
+from the current `master` with `LULZBOT_USE_BLTOUCH` enabled
+(`python3 -m platformio run -e rambo`; Flash 67.2%, RAM 67.7%). With
+`LULZBOT_USE_BLTOUCH` commented out the same tree builds the stock
+configuration (Flash 65.7%, RAM 66.6%).
+
+**Read this before flashing it.** This build is not a drop-in for a stock
+Mini. It assumes a specific, physically modified machine:
+
+- **The mechanical Z endstop is gone.** The BLTouch is the *sole* Z
+  reference for both homing and probing; Z homes down with `Z_SAFE_HOMING`
+  at bed center.
+- **BLTouch wiring:** 2-pin trigger/signal on the Z-min endstop header
+  (`Z_MIN_PIN`, pin 10); 3-pin servo/control on pin 23 (`SERVO0_PIN`,
+  formerly Z-max).
+- **Probe offsets are specific to this mount**: X `+47`, Y `-36` (measured
+  46.9 mm right / 35.7 mm in front, rounded - the 2.0 fork requires
+  integers). Your mount will almost certainly differ. The `+47` X offset
+  also limits the probed mesh to X 50-145.
+- **The Z probe offset (`-3.0`) is a ruler measurement, not a calibrated
+  one.** Dial it in with an `M851` paper test, then `M500`.
+
+**Verify `M119` shows the probe actually toggling before running `G28`** -
+an unconnected or miswired probe reads as "never triggered," and Z homing
+will then drive the nozzle into the bed.
+
+After flashing, run **`M502` then `M500`** to load and save the compiled
+defaults. EEPROM values (probe offset, PID, steps/mm, mesh) survive a
+flash and will otherwise silently shadow the firmware's settings.
 
 # Safety and warnings:
 
